@@ -1,9 +1,10 @@
 package com.inimai.devjourney.service;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -59,22 +60,16 @@ public class JournalService {
     }
 
 
-    public List<JournalResponse> getAllJournals() {
+     public Page<JournalResponse> getAllJournals(Pageable pageable) {
 
         Authentication authentication =
                 SecurityContextHolder.getContext().getAuthentication();
 
         User user = (User) authentication.getPrincipal();
 
-        List<Journal> journals = journalRepository.findByUser(user);
+        Page<Journal> journals = journalRepository.findByUser(user, pageable);
 
-        List<JournalResponse> response = new ArrayList<>();
-
-        for (Journal journal : journals) {
-            response.add(mapToResponse(journal));
-        }
-
-        return response;
+        return journals.map(this::mapToResponse);
     }
 
 

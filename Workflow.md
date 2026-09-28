@@ -712,4 +712,359 @@ After the response is completed, SecurityContext is cleared.
 The next request repeats the same process because JWT authentication is stateless.
 
 ---
+//PAGNATION
+
+Suppose your database has **25 journals**.
+
+We want:
+
+```http
+GET /api/journals?page=1&size=10
+```
+
+That means:
+
+> "Give me page 1, with 10 journals per page."
+
+Remember, **page starts at 0**.
+
+So:
+
+```text
+page 0 → journals 1–10
+page 1 → journals 11–20
+page 2 → journals 21–25
+```
+
+---
+
+## 1. Request reaches your Controller
+
+You have:
+
+```java
+@GetMapping
+public Page<JournalResponse> getAllJournals(
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "10") int size) {
+
+    Pageable pageable = PageRequest.of(page, size);
+
+    return journalService.getAllJournals(pageable);
+}
+```
+
+The URL is:
+
+```text
+/api/journals?page=1&size=10
+```
+
+Spring extracts:
+
+```text
+page = 1
+size = 10
+```
+
+So this line:
+
+```java
+Pageable pageable = PageRequest.of(page, size);
+```
+
+creates a `Pageable` object containing:
+
+```text
+Pageable
+   page = 1
+   size = 10
+```
+
+### Important:
+
+`Pageable` does **NOT contain the journals**.
+
+It contains the **instructions for getting the journals**.
+
+Think:
+
+```text
+Pageable = "What page do you want?"
+Page     = "Here is that page."
+```
+
+
+
+# 2. Controller sends `Pageable` to Service
+
+We do:
+
+```java
+return journalService.getAllJournals(pageable);
+```
+
+So the service receives:
+
+```java
+Pageable pageable
+```
+
+Your service:
+
+```java
+public Page<JournalResponse> getAllJournals(Pageable pageable) {
+
+    Authentication authentication =
+            SecurityContextHolder.getContext().getAuthentication();
+
+    User user = (User) authentication.getPrincipal();
+
+    Page<Journal> journals =
+            journalRepository.findByUser(user, pageable);
+
+    return journals.map(this::mapToResponse);
+}
+```
+
+---
+
+# 3. Service asks Repository
+
+This line:
+
+```java
+journalRepository.findByUser(user, pageable);
+```
+
+is basically saying:
+
+> "Database, give me this user's journals according to these pagination instructions."
+
+We have:
+
+```text
+user
+ ↓
+which user's journals?
+
+pageable
+ ↓
+which page?
+how many?
+sorting? (we'll add this)
+```
+
+---
+
+# 4. Repository talks to the database
+
+Your repository:
+
+```java
+Page<Journal> findByUser(User user, Pageable pageable);
+```
+
+Spring Data JPA understands:
+
+```text
+Page<Journal>
+```
+
+and:
+
+```text
+Pageable
+```
+
+So Spring/Hibernate generates the appropriate database query to fetch **only the requested portion**.
+
+
+# 5. Now comes `Page<Journal>`
+
+The repository doesn't just return:
+
+```java
+List<Journal>
+```
+
+It returns:
+
+```java
+Page<Journal>
+```
+
+This `Page` contains the journals **and pagination information**.
+
+Conceptually:
+
+```text
+Page<Journal>
+
+content:
+    Journal 11
+    Journal 12
+    ...
+    Journal 20
+
+page number:
+    1
+
+page size:
+    10
+
+total elements:
+    25
+
+total pages:
+    3
+
+has next:
+    true
+```
+
+So `Page` is basically:
+
+> **"Here are the results + information about where these results sit in the overall dataset."**
+
+---
+
+# 6. Why does Service do this?
+
+```java
+return journals.map(this::mapToResponse);
+```
+
+Our repository gives:
+
+```text
+Page<Journal>
+```
+
+But we don't want to expose the Entity directly.
+
+We want:
+
+```text
+Page<JournalResponse>
+```
+
+So:
+
+```java
+journals.map(this::mapToResponse)
+```
+
+takes every `Journal` inside the page and converts it:
+
+```text
+Journal 11
+    ↓
+mapToResponse()
+    ↓
+JournalResponse 11
+```
+
+and so on.
+
+The pagination information stays.
+
+So:
+
+```text
+Page<Journal>
+      ↓
+     map()
+      ↓
+Page<JournalResponse>
+```
+
+---
+
+# 7. Controller returns it
+
+The controller returns:
+
+```java
+Page<JournalResponse>
+```
+
+Spring + Jackson then convert that Java object into JSON.
+
+So the response can look conceptually like:
+
+```json
+{
+  "content": [
+    {
+      "id": 11,
+      "title": "Journal 11"
+    },
+    {
+      "id": 12,
+      "title": "Journal 12"
+    }
+  ],
+  "pageable": {
+    "pageNumber": 1,
+    "pageSize": 10
+  },
+  "totalElements": 25,
+  "totalPages": 3
+}
+```
+
+The exact JSON structure can vary with Spring Data/Spring Boot configuration, but the important idea is:
+
+**The client gets both the journals AND pagination metadata.**
+
+---
+
+# 🔥 So the entire flow
+
+This is what I want you to picture in your head:
+
+```text
+CLIENT
+  │
+  │ GET /api/journals?page=1&size=10
+  ↓
+CONTROLLER
+  │
+  │ page = 1
+  │ size = 10
+  ↓
+PageRequest.of(1, 10)
+  ↓
+PAGEABLE
+  │
+  │ "I want page 1, 10 items"
+  ↓
+SERVICE
+  │
+  ↓
+REPOSITORY
+  │
+  │ findByUser(user, pageable)
+  ↓
+DATABASE
+  │
+  │ returns journals 11–20
+  ↓
+Page<Journal>
+  │
+  │ mapToResponse()
+  ↓
+Page<JournalResponse>
+  ↓
+JACKSON
+  ↓
+JSON
+  ↓
+CLIENT
+```
+
+### 🧠 The easiest way to remember the difference:
+
+```
 
