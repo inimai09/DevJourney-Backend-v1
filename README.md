@@ -1,5 +1,5 @@
 [![CI](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml/badge.svg)](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml)
-![CI](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml/badge.svg)
+
 
 # DevJourney API
 
