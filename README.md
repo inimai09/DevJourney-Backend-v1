@@ -1,4 +1,4 @@
-![CI](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml/badge.svg)
+[![CI](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml/badge.svg)](https://github.com/inimai09/DevJourney-Backend-v1/actions/workflows/ci.yml)
 # DevJourney API v1
 
 A secure RESTful Journal Management API built using **Spring Boot**, **Spring Security**, **JWT Authentication**, and **PostgreSQL**. The project demonstrates modern backend development practices, including authentication, authorization, validation, exception handling, and relational database management.
